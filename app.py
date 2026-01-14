@@ -6,91 +6,115 @@ import io
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-# ===============================
+# =========================
 # CONFIG
-# ===============================
+# =========================
 st.set_page_config(page_title="ScanText Pro", layout="centered")
 
 st.title("📄 ScanText Pro")
-st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks dan mengedit hasilnya")
+st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks, bisa diedit, dan di-download")
 
-# ===============================
+# =========================
 # LOAD OCR (CACHE AGAR CEPAT)
-# ===============================
+# =========================
 @st.cache_resource
 def load_reader():
     return easyocr.Reader(['en', 'id'], gpu=False)
 
 reader = load_reader()
 
-# ===============================
+# =========================
 # SESSION STATE
-# ===============================
+# =========================
 if "ocr_text" not in st.session_state:
     st.session_state.ocr_text = ""
 
-# ===============================
-# UPLOAD GAMBAR
-# ===============================
-uploaded_file = st.file_uploader(
-    "Upload gambar",
-    type=["png", "jpg", "jpeg"]
-)
+# =========================
+# INPUT GAMBAR (UPLOAD / KAMERA)
+# =========================
+st.subheader("📸 Ambil Gambar")
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Gambar yang diupload", use_column_width=True)
+tab1, tab2 = st.tabs(["📁 Upload Gambar", "📷 Kamera Langsung"])
 
+image = None
+
+with tab1:
+    uploaded_file = st.file_uploader("Upload gambar", type=["png", "jpg", "jpeg"])
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Gambar dari Upload", use_column_width=True)
+
+with tab2:
+    camera_file = st.camera_input("Ambil foto dengan kamera")
+    if camera_file:
+        image = Image.open(camera_file)
+        st.image(image, caption="Gambar dari Kamera", use_column_width=True)
+
+# =========================
+# OCR PROCESS
+# =========================
+if image is not None:
     if st.button("🔍 Baca Teks dari Gambar"):
         with st.spinner("Membaca teks dari gambar..."):
             result = reader.readtext(np.array(image), detail=0)
             st.session_state.ocr_text = "\n".join(result)
         st.success("OCR selesai!")
 
-# ===============================
-# HASIL OCR (EDITABLE)
-# ===============================
+# =========================
+# EDIT TEKS
+# =========================
 st.subheader("✏️ Hasil Teks (Bisa Diedit)")
-st.session_state.ocr_text = st.text_area(
+edited_text = st.text_area(
     "Edit teks hasil OCR di sini:",
-    st.session_state.ocr_text,
-    height=250
+    value=st.session_state.ocr_text,
+    height=300
+)
+st.session_state.ocr_text = edited_text
+
+# =========================
+# DOWNLOAD TXT
+# =========================
+st.download_button(
+    label="⬇️ Download TXT",
+    data=st.session_state.ocr_text,
+    file_name="hasil_ocr.txt",
+    mime="text/plain"
 )
 
-# ===============================
-# DOWNLOAD BUTTON
-# ===============================
-if st.session_state.ocr_text.strip() != "":
-    st.subheader("⬇️ Download Hasil")
+# =========================
+# GENERATE PDF
+# =========================
+def generate_pdf(text):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
 
-    col1, col2 = st.columns(2)
+    x, y = 40, height - 40
+    for line in text.split("\n"):
+        c.drawString(x, y, line)
+        y -= 14
+        if y < 40:
+            c.showPage()
+            y = height - 40
 
-    # --- Download TXT ---
-    with col1:
-        st.download_button(
-            label="⬇️ Download TXT",
-            data=st.session_state.ocr_text,
-            file_name="hasil_ocr.txt",
-            mime="text/plain"
-        )
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-    # --- Download PDF ---
-    with col2:
-        pdf_buffer = io.BytesIO()
-        c = canvas.Canvas(pdf_buffer, pagesize=A4)
-        textobject = c.beginText(40, 800)
+pdf_file = generate_pdf(st.session_state.ocr_text)
 
-        for line in st.session_state.ocr_text.split("\n"):
-            textobject.textLine(line)
+st.download_button(
+    label="⬇️ Download PDF",
+    data=pdf_file,
+    file_name="hasil_ocr.pdf",
+    mime="application/pdf"
+)
 
-        c.drawText(textobject)
-        c.showPage()
-        c.save()
-        pdf_buffer.seek(0)
-
-        st.download_button(
-            label="⬇️ Download PDF",
-            data=pdf_buffer,
-            file_name="hasil_ocr.pdf",
-            mime="application/pdf"
-        )
+# =========================
+# FOOTER
+# =========================
+st.markdown("---")
+st.markdown(
+    "<center>© 2026 ScanText Pro • Powered by AI OCR<br>Versi Demo – Untuk penggunaan komersial hubungi admin</center>",
+    unsafe_allow_html=True
+)

@@ -1,7 +1,7 @@
 streamlit
 easyocr
-Pillow
 numpy
+pillow
 reportlab
 torch
 torchvision
