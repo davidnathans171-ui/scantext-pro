@@ -10,8 +10,9 @@ from reportlab.pdfgen import canvas
 # CONFIG
 # ===============================
 st.set_page_config(page_title="ScanText Pro", layout="centered")
+
 st.title("📄 ScanText Pro")
-st.caption("Aplikasi AI OCR untuk membaca dan mengedit teks dari gambar struk / dokumen")
+st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks dan mengedit hasilnya")
 
 # ===============================
 # LOAD OCR (CACHE AGAR CEPAT)
@@ -33,69 +34,63 @@ if "ocr_text" not in st.session_state:
 # ===============================
 uploaded_file = st.file_uploader(
     "Upload gambar",
-    type=["png", "jpg", "jpeg"],
-    help="Upload gambar struk, nota, atau dokumen"
+    type=["png", "jpg", "jpeg"]
 )
 
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Gambar yang diupload", use_column_width=True)
 
-    if st.button("🔍 Baca Teks"):
+    if st.button("🔍 Baca Teks dari Gambar"):
         with st.spinner("Membaca teks dari gambar..."):
             result = reader.readtext(np.array(image), detail=0)
             st.session_state.ocr_text = "\n".join(result)
-        st.success("OCR selesai! Teks bisa diedit di bawah.")
+        st.success("OCR selesai!")
 
 # ===============================
-# EDIT TEKS
+# HASIL OCR (EDITABLE)
 # ===============================
-st.subheader("📝 Hasil Teks (Bisa Diedit)")
-edited_text = st.text_area(
-    "Edit teks di bawah ini sesuai kebutuhan:",
-    value=st.session_state.ocr_text,
-    height=300
-)
-
-# Simpan hasil edit ke session
-st.session_state.ocr_text = edited_text
-
-# ===============================
-# DOWNLOAD TXT
-# ===============================
-def generate_txt(text):
-    return text.encode("utf-8")
-
-st.download_button(
-    label="⬇️ Download sebagai TXT",
-    data=generate_txt(st.session_state.ocr_text),
-    file_name="hasil_ocr.txt",
-    mime="text/plain"
+st.subheader("✏️ Hasil Teks (Bisa Diedit)")
+st.session_state.ocr_text = st.text_area(
+    "Edit teks hasil OCR di sini:",
+    st.session_state.ocr_text,
+    height=250
 )
 
 # ===============================
-# DOWNLOAD PDF
+# DOWNLOAD BUTTON
 # ===============================
-def generate_pdf(text):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+if st.session_state.ocr_text.strip() != "":
+    st.subheader("⬇️ Download Hasil")
 
-    x_margin = 40
-    y_margin = height - 40
-    y = y_margin
+    col1, col2 = st.columns(2)
 
-    for line in text.split("\n"):
-        if y < 40:
-            c.showPage()
-            y = y_margin
-        c.drawString(x_margin, y, line)
-        y -= 14
+    # --- Download TXT ---
+    with col1:
+        st.download_button(
+            label="⬇️ Download TXT",
+            data=st.session_state.ocr_text,
+            file_name="hasil_ocr.txt",
+            mime="text/plain"
+        )
 
-    c.save()
-    buffer.seek(0)
-    return buffer
+    # --- Download PDF ---
+    with col2:
+        pdf_buffer = io.BytesIO()
+        c = canvas.Canvas(pdf_buffer, pagesize=A4)
+        textobject = c.beginText(40, 800)
 
-st.download_button(
-    label="⬇️ Download sebagai PDF",
-    data=g
+        for line in st.session_state.ocr_text.split("\n"):
+            textobject.textLine(line)
+
+        c.drawText(textobject)
+        c.showPage()
+        c.save()
+        pdf_buffer.seek(0)
+
+        st.download_button(
+            label="⬇️ Download PDF",
+            data=pdf_buffer,
+            file_name="hasil_ocr.pdf",
+            mime="application/pdf"
+        )
