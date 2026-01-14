@@ -3,138 +3,145 @@ from PIL import Image
 import easyocr
 import numpy as np
 import io
+import os
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-# ==========================
+# =========================
+# LOGO NATHANS AI
+# =========================
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    st.image(logo, width=120)
+else:
+    st.warning("⚠️ Logo Nathans AI tidak ditemukan (logo.png)")
+
+# =========================
 # CONFIG
-# ==========================
+# =========================
 st.set_page_config(page_title="ScanText Pro", layout="centered")
 
-# Logo Nathans AI
-st.image("logo.png", width=120)
-
 st.title("📄 ScanText Pro")
-st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks, bisa diedit, di-reset, dan di-download")
+st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks, bisa diedit, dan di-download")
 
-# ==========================
-# LOAD OCR (CACHE AGAR CEPAT)
-# ==========================
+# =========================
+# LOAD OCR (CACHE)
+# =========================
 @st.cache_resource
 def load_reader():
     return easyocr.Reader(['en', 'id'], gpu=False)
 
 reader = load_reader()
 
-# ==========================
+# =========================
 # SESSION STATE
-# ==========================
+# =========================
 if "ocr_text" not in st.session_state:
     st.session_state.ocr_text = ""
 
 if "image" not in st.session_state:
     st.session_state.image = None
 
-# ==========================
-# AMBIL GAMBAR
-# ==========================
+# =========================
+# INPUT MODE
+# =========================
 st.subheader("📸 Ambil Gambar")
+mode = st.radio(
+    "Pilih metode input gambar:",
+    ["📂 Upload Gambar", "📷 Kamera Langsung"],
+    horizontal=True
+)
 
-tab1, tab2 = st.tabs(["📂 Upload Gambar", "📷 Kamera Langsung"])
+image = None
 
-with tab1:
+if mode == "📂 Upload Gambar":
     uploaded_file = st.file_uploader(
-        "Upload gambar (PNG, JPG, JPEG)",
+        "Upload gambar",
         type=["png", "jpg", "jpeg"]
     )
     if uploaded_file:
         image = Image.open(uploaded_file)
-        st.session_state.image = image
-        st.image(image, caption="Gambar yang diupload", use_column_width=True)
 
-with tab2:
+elif mode == "📷 Kamera Langsung":
     camera_image = st.camera_input("Ambil gambar langsung dari kamera")
     if camera_image:
         image = Image.open(camera_image)
-        st.session_state.image = image
-        st.image(image, caption="Gambar dari kamera", use_column_width=True)
 
-# ==========================
-# PROSES OCR
-# ==========================
-if st.session_state.image is not None:
-    if st.button("🔍 Baca Teks dari Gambar"):
+# =========================
+# TAMPILKAN GAMBAR
+# =========================
+if image:
+    st.session_state.image = image
+    st.image(image, caption="Gambar yang digunakan", use_column_width=True)
+
+# =========================
+# OCR BUTTON
+# =========================
+if st.button("🔍 Baca Teks dari Gambar"):
+    if st.session_state.image is None:
+        st.warning("⚠️ Silakan upload gambar atau ambil dari kamera terlebih dahulu.")
+    else:
         with st.spinner("Membaca teks dari gambar..."):
             result = reader.readtext(np.array(st.session_state.image), detail=0)
             st.session_state.ocr_text = "\n".join(result)
+        st.success("✅ OCR selesai!")
 
-# ==========================
-# HASIL TEKS (BISA DIEDIT)
-# ==========================
+# =========================
+# EDITABLE TEXT
+# =========================
 st.subheader("✏️ Hasil Teks (Bisa Diedit)")
-
-st.session_state.ocr_text = st.text_area(
+edited_text = st.text_area(
     "Edit teks hasil OCR di sini:",
     value=st.session_state.ocr_text,
     height=250
 )
+st.session_state.ocr_text = edited_text
 
-# ==========================
-# TOMBOL RESET / HAPUS TEKS
-# ==========================
-col1, col2 = st.columns(2)
+# =========================
+# RESET BUTTON
+# =========================
+if st.button("🗑️ Reset / Hapus Semua"):
+    st.session_state.ocr_text = ""
+    st.session_state.image = None
+    st.success("🧹 Data berhasil di-reset. Refresh halaman jika perlu.")
 
-with col1:
-    if st.button("🗑️ Reset / Hapus Teks"):
-        st.session_state.ocr_text = ""
-        st.session_state.image = None
-        st.experimental_rerun()
-
-with col2:
-    st.write("")
-
-# ==========================
+# =========================
 # DOWNLOAD TXT
-# ==========================
-if st.session_state.ocr_text.strip():
+# =========================
+st.subheader("⬇️ Download Hasil")
+
+if st.session_state.ocr_text.strip() != "":
+    txt_bytes = st.session_state.ocr_text.encode("utf-8")
     st.download_button(
-        label="⬇️ Download sebagai TXT",
-        data=st.session_state.ocr_text,
-        file_name="scantext_pro.txt",
+        label="📄 Download TXT",
+        data=txt_bytes,
+        file_name="scantext_result.txt",
         mime="text/plain"
     )
 
-# ==========================
-# DOWNLOAD PDF
-# ==========================
-def generate_pdf(text):
+    # =========================
+    # DOWNLOAD PDF
+    # =========================
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    x, y = 40, height - 40
+    textobject = c.beginText(40, 800)
 
-    for line in text.split("\n"):
-        c.drawString(x, y, line)
-        y -= 15
-        if y < 40:
-            c.showPage()
-            y = height - 40
+    for line in st.session_state.ocr_text.split("\n"):
+        textobject.textLine(line)
 
+    c.drawText(textobject)
+    c.showPage()
     c.save()
-    buffer.seek(0)
-    return buffer
 
-if st.session_state.ocr_text.strip():
-    pdf_file = generate_pdf(st.session_state.ocr_text)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+
     st.download_button(
-        label="⬇️ Download sebagai PDF",
-        data=pdf_file,
-        file_name="scantext_pro.pdf",
+        label="📕 Download PDF",
+        data=pdf_bytes,
+        file_name="scantext_result.pdf",
         mime="application/pdf"
     )
-
-# ==========================
-# FOOTER
-# ==========================
-st.markdown("---")
-st.caption("© 2026 Nathans AI • ScanText Pro")
+else:
+    st.info("📌 Belum ada teks untuk di-download.")
