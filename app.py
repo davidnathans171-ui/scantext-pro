@@ -1,6 +1,11 @@
 import streamlit as st
 from PIL import Image
 import os
+# =========================
+# MODE KONTROL
+# =========================
+SAFE_MODE = True   # ubah ke False untuk mengaktifkan OCR
+
 
 # =========================
 # CONFIG
@@ -53,7 +58,11 @@ if uploaded_file is not None:
     st.success("Gambar berhasil diupload!")
     st.image(image, caption="Preview gambar", use_column_width=True)
 
+    if SAFE_MODE:
     st.warning("⚠️ OCR belum aktif. Ini masih SAFE MODE.")
+else:
+    st.success("OCR aktif. Sistem siap digunakan.")
+
 
 # =========================
 # FOOTER
