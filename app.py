@@ -1,51 +1,44 @@
 import streamlit as st
-from PIL import Image
 import os
-# =========================
-# MODE KONTROL
-# =========================
-SAFE_MODE = True   # ubah ke False untuk mengaktifkan OCR
 
+# ============================
+# KONFIGURASI
+# ============================
+SAFE_MODE = False  # Ubah ke False jika OCR mau diaktifkan
+LOGO_PATH = "logo.png"
 
-# =========================
-# CONFIG
-# =========================
 st.set_page_config(
-    page_title="ScanText Pro - Safe Mode",
+    page_title="ScanText Pro",
     layout="centered"
 )
 
-# =========================
+# ============================
 # LOGO
-# =========================
-LOGO_PATH = "logo.png"
-
-if os.path.exists(LOGO_PATH):
+# ============================
+if os.path.exists(LOGO_PATH) and os.path.isfile(LOGO_PATH):
     try:
-        logo = Image.open(LOGO_PATH)
-        st.image(logo, width=150)
+        st.image(LOGO_PATH, width=140)
     except:
-        st.warning("⚠️ Logo ada, tapi tidak bisa dibuka.")
+        st.warning("⚠ Logo ditemukan tapi gagal dibuka.")
 else:
-    st.warning("⚠️ Logo belum ditemukan. Pastikan ada file logo.png")
+    st.warning("⚠ Logo belum ditemukan. Pastikan ada file logo.png di folder yang sama.")
 
-# =========================
-# TITLE
-# =========================
-st.title("ScanText Pro - SAFE MODE")
+# ============================
+# JUDUL
+# ============================
+st.title("📄 ScanText Pro - SAFE MODE")
 st.caption("Versi aman untuk cek stabilitas sebelum OCR diaktifkan.")
 
 st.info("""
-Jika aplikasi ini bisa dibuka di HP ayah kamu tanpa error,
-berarti:
-- Hosting Streamlit normal
-- Akses publik normal
+Jika aplikasi ini bisa dibuka tanpa error:
+- Hosting Streamlit normal  
+- Akses publik normal  
 - Masalah sebelumnya murni dari kode OCR
 """)
 
-# =========================
+# ============================
 # UPLOAD GAMBAR
-# =========================
+# ============================
 st.subheader("📷 Upload Gambar")
 
 uploaded_file = st.file_uploader(
@@ -54,61 +47,47 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    st.success("Gambar berhasil diupload!")
-    st.image(image, caption="Preview gambar", use_column_width=True)
+    st.image(uploaded_file, caption="Preview gambar", use_container_width=True)
 
-    if SAFE_MODE:
-    st.warning("⚠️ OCR belum aktif. Ini masih SAFE MODE.")
-else:
-    st.success("OCR aktif. Sistem siap digunakan.")
-
-
-# =========================
-# FOOTER
-# =========================
+# ============================
+# OCR TEST MODE
+# ============================
 st.markdown("---")
-st.markdown("© 2026 • ScanText Pro • Safe Mode")
 st.subheader("🔍 OCR (TEST MODE)")
 
-
-uploaded_file = st.file_uploader(
-    "Upload gambar untuk OCR",
-    type=["png", "jpg", "jpeg"]
-)
-
 if uploaded_file is not None:
-    st.image(uploaded_file, caption="Gambar yang diupload", use_container_width=True)
 
-    if st.button("Proses OCR"):
-        st.info("OCR sedang diproses...")
+    if SAFE_MODE:
+        st.warning("⚠ OCR belum aktif. Ini masih SAFE MODE.")
+        st.write("Untuk mengaktifkan OCR, ubah:")
+        st.code("SAFE_MODE = False", language="python")
 
-        try:
-            import easyocr
-            reader = easyocr.Reader(['en'], gpu=False)
+    else:
+        if st.button("🚀 Proses OCR"):
+            st.info("OCR sedang diproses...")
 
-            from PIL import Image
-            import numpy as np
+            try:
+                import easyocr
+                import numpy as np
+                from PIL import Image
 
-            image = Image.open(uploaded_file).convert("RGB")
-            img_array = np.array(image)
+                reader = easyocr.Reader(['en', 'id'], gpu=False)
+                image = Image.open(uploaded_file)
+                result = reader.readtext(np.array(image), detail=0)
 
-            results = reader.readtext(img_array)
+                text = "\n".join(result)
 
-            text = ""
-            for r in results:
-                text += r[1] + "\n"
+                st.success("OCR selesai!")
+                st.text_area("📄 Hasil OCR", text, height=250)
 
-            st.success("OCR selesai!")
-            st.text_area("Hasil OCR:", text, height=200)
+            except Exception as e:
+                st.error(f"Terjadi error saat OCR: {e}")
 
-        except Exception as e:
-            st.error("OCR gagal dijalankan:")
-            st.code(str(e))
+else:
+    st.info("Silakan upload gambar terlebih dahulu.")
 
-
-if uploaded_file is not None:
-    if st.button("Proses OCR (TEST)"):
-        st.info("OCR akan diaktifkan di tahap berikutnya.")
-        st.warning("Saat ini OCR masih dimatikan untuk menjaga stabilitas.")
-
+# ============================
+# FOOTER
+# ============================
+st.markdown("---")
+st.markdown("© 2026 • ScanText Pro • Safe Mode")
