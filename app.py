@@ -1,58 +1,61 @@
+import os
+import io
 import streamlit as st
 from PIL import Image
 import easyocr
 import numpy as np
-import io
-import os
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-# ===============================
-# CONFIG
-# ===============================
-st.set_page_config(page_title="ScanText Pro", layout="centered")
+# =============================
+# CONFIG HALAMAN
+# =============================
+st.set_page_config(
+    page_title="ScanText Pro - Nathans AI",
+    layout="centered"
+)
 
-# ===============================
+# =============================
 # LOGO NATHANS AI
-# ===============================
-logo_path = "logo.png"
+# =============================
+LOGO_PATH = "logo.png"
 
-if os.path.isfile(logo_path):
-    logo = Image.open(logo_path)
+if os.path.isfile(LOGO_PATH):
+    logo = Image.open(LOGO_PATH)
     st.image(logo, width=120)
 else:
-    st.warning("⚠️ Logo 'logo.png' tidak ditemukan. Pastikan file ada di folder yang sama dengan app.py")
+    st.warning("⚠️ Logo Nathans AI tidak ditemukan. Pastikan file logo.png ada di folder yang sama dengan app.py")
 
-# ===============================
-# JUDUL
-# ===============================
+# =============================
+# JUDUL APLIKASI
+# =============================
 st.title("📄 ScanText Pro")
 st.caption("Aplikasi AI OCR untuk mengubah gambar menjadi teks, bisa diedit, dan di-download")
 
-# ===============================
-# LOAD OCR MODEL (CACHE)
-# ===============================
+# =============================
+# LOAD OCR (CACHE AGAR CEPAT)
+# =============================
 @st.cache_resource
 def load_reader():
     return easyocr.Reader(['en', 'id'], gpu=False)
 
 reader = load_reader()
 
-# ===============================
+# =============================
 # SESSION STATE
-# ===============================
+# =============================
 if "ocr_text" not in st.session_state:
     st.session_state.ocr_text = ""
 
 if "image" not in st.session_state:
     st.session_state.image = None
 
-# ===============================
-# AMBIL GAMBAR
-# ===============================
-st.subheader("📷 Ambil Gambar")
+# =============================
+# AMBIL GAMBAR (UPLOAD / KAMERA)
+# =============================
+st.subheader("📸 Ambil Gambar")
 
-tab1, tab2 = st.tabs(["📂 Upload Gambar", "📸 Kamera Langsung"])
+tab1, tab2 = st.tabs(["📁 Upload Gambar", "📷 Kamera Langsung"])
 
 with tab1:
     uploaded_file = st.file_uploader(
@@ -62,27 +65,28 @@ with tab1:
     if uploaded_file:
         image = Image.open(uploaded_file)
         st.session_state.image = image
+        st.image(image, caption="Gambar yang diupload", use_container_width=True)
 
 with tab2:
-    camera_image = st.camera_input("Ambil foto dari kamera")
+    camera_image = st.camera_input("Ambil gambar dari kamera")
     if camera_image:
         image = Image.open(camera_image)
         st.session_state.image = image
+        st.image(image, caption="Gambar dari kamera", use_container_width=True)
 
-# ===============================
-# TAMPILKAN GAMBAR
-# ===============================
+# =============================
+# PROSES OCR
+# =============================
 if st.session_state.image is not None:
-    st.image(st.session_state.image, caption="Gambar yang digunakan", use_column_width=True)
-
     if st.button("🔍 Baca Teks dari Gambar"):
-        with st.spinner("Membaca teks dari gambar..."):
-            result = reader.readtext(np.array(st.session_state.image), detail=0)
+        with st.spinner("Sedang membaca teks..."):
+            img_array = np.array(st.session_state.image)
+            result = reader.readtext(img_array, detail=0)
             st.session_state.ocr_text = "\n".join(result)
 
-# ===============================
+# =============================
 # HASIL TEKS (BISA DIEDIT)
-# ===============================
+# =============================
 st.subheader("✏️ Hasil Teks (Bisa Diedit)")
 
 edited_text = st.text_area(
@@ -93,51 +97,60 @@ edited_text = st.text_area(
 
 st.session_state.ocr_text = edited_text
 
-# ===============================
-# BUTTON ACTION
-# ===============================
-col1, col2, col3 = st.columns(3)
+# =============================
+# TOMBOL RESET
+# =============================
+if st.button("♻️ Reset / Hapus Teks"):
+    st.session_state.ocr_text = ""
+    st.session_state.image = None
+    st.success("Teks dan gambar berhasil direset!")
 
-with col1:
-    if st.button("🧹 Reset / Hapus Teks"):
-        st.session_state.ocr_text = ""
-        st.session_state.image = None
-        st.experimental_rerun()
-
-with col2:
-    txt_bytes = st.session_state.ocr_text.encode("utf-8")
+# =============================
+# DOWNLOAD TXT
+# =============================
+if st.session_state.ocr_text.strip() != "":
     st.download_button(
-        label="📄 Download TXT",
-        data=txt_bytes,
-        file_name="scantext.txt",
+        label="📄 Download sebagai TXT",
+        data=st.session_state.ocr_text,
+        file_name="hasil_ocr.txt",
         mime="text/plain"
     )
 
-with col3:
-    # Generate PDF
+# =============================
+# DOWNLOAD PDF
+# =============================
+def create_pdf(text):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    text_object = c.beginText(40, height - 40)
-    for line in st.session_state.ocr_text.split("\n"):
-        text_object.textLine(line)
+    x_margin = 40
+    y_margin = 800
+    line_height = 14
 
-    c.drawText(text_object)
-    c.showPage()
+    y = y_margin
+    for line in text.split("\n"):
+        if y <= 40:
+            c.showPage()
+            y = y_margin
+        c.drawString(x_margin, y, line)
+        y -= line_height
+
     c.save()
-
     buffer.seek(0)
+    return buffer
 
+if st.session_state.ocr_text.strip() != "":
+    pdf_file = create_pdf(st.session_state.ocr_text)
     st.download_button(
-        label="📑 Download PDF",
-        data=buffer,
-        file_name="scantext.pdf",
+        label="📕 Download sebagai PDF",
+        data=pdf_file,
+        file_name="hasil_ocr.pdf",
         mime="application/pdf"
     )
 
-# ===============================
+# =============================
 # FOOTER
-# ===============================
+# =============================
 st.markdown("---")
-st.markdown("💡 **Nathans AI – ScanText Pro**")
+st.markdown("🚀 **ScanText Pro - Nathans AI** | OCR App with Camera, Edit, Reset & Download")
