@@ -60,3 +60,10 @@ if uploaded_file is not None:
 # =========================
 st.markdown("---")
 st.markdown("© 2026 • ScanText Pro • Safe Mode")
+st.subheader("🔍 OCR (TEST MODE)")
+
+if uploaded_file is not None:
+    if st.button("Proses OCR (TEST)"):
+        st.info("OCR akan diaktifkan di tahap berikutnya.")
+        st.warning("Saat ini OCR masih dimatikan untuk menjaga stabilitas.")
+
