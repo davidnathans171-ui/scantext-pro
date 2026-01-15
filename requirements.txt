@@ -2,5 +2,4 @@ streamlit
 easyocr
 pillow
 numpy
-reportlab
-opencv-python-headless
+
